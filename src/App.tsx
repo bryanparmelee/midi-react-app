@@ -16,14 +16,24 @@ const noteNames = [
 ];
 
 function App() {
-  const [currentNotes, setCurrentNotes] = useState([]);
+  let midiOutput: MIDIOutput | null = null;
+  let midiInput: MIDIInput | null = null;
+  let inputs: MIDIInput[] | [] = [];
+  let outputs: MIDIOutput[] | [] = [];
+
+  const NOTE_ON = 0x90;
+  const NOTE_OFF = 0x80;
+
+  const [currentNotes, setCurrentNotes] = useState<string[]>([]);
 
   navigator.requestMIDIAccess().then(onSuccess, onFailure);
 
   function onSuccess(MIDIAccess: MIDIAccess) {
-    for (const input of MIDIAccess.inputs.values()) {
-      input.onmidimessage = getMIDIMessage;
-    }
+    outputs = Array.from(MIDIAccess.outputs.values());
+    console.log(outputs);
+
+    inputs = Array.from(MIDIAccess.inputs.values());
+    console.log(inputs);
   }
 
   function onFailure() {
@@ -36,41 +46,9 @@ function App() {
     return noteNames[noteIndex] + octave.toString();
   }
 
-  function noteOn(note: number) {}
-
-  function noteOff(note) {}
-
-  function getMIDIMessage(message: MIDIMessageEvent) {
-    if (message.data) {
-      const command = message.data[0];
-      const note = message.data[1];
-      const velocity = message.data.length > 2 ? message.data[2] : 0;
-
-      switch (command) {
-        case 144:
-          if (velocity > 0) {
-            noteOn(note);
-          } else {
-            noteOff(note);
-          }
-          break;
-        case 128:
-          noteOff(note);
-          break;
-      }
-    }
-  }
-
   return (
     <>
       <h2>MIDI React App</h2>
-      <div>
-        {currentNotes.length ? (
-          currentNotes.map((note) => <p>{note}</p>)
-        ) : (
-          <p>—</p>
-        )}
-      </div>
     </>
   );
 }
