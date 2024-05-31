@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import InputOutputList from "./Components/InputOutputList";
 
 const noteNames = [
   "C",
@@ -15,29 +16,43 @@ const noteNames = [
   "B",
 ];
 
+let isMidiLoaded = false;
+
 function App() {
-  let midiOutput: MIDIOutput | null = null;
-  let midiInput: MIDIInput | null = null;
-  let inputs: MIDIInput[] | [] = [];
-  let outputs: MIDIOutput[] | [] = [];
+  useEffect(() => {
+    if (!isMidiLoaded) {
+      isMidiLoaded = true;
+      navigator.requestMIDIAccess().then(onSuccess, onFailure);
+    }
+  }, []);
 
   const NOTE_ON = 0x90;
   const NOTE_OFF = 0x80;
 
   const [currentNotes, setCurrentNotes] = useState<string[]>([]);
-
-  navigator.requestMIDIAccess().then(onSuccess, onFailure);
+  const [inputs, setInputs] = useState<MIDIInput[]>([]);
+  const [currentInput, setCurrentInput] = useState<string>("");
+  const [outputs, setOutputs] = useState<MIDIOutput[]>([]);
+  const [currentOutput, setCurrentOutput] = useState<string>("");
 
   function onSuccess(MIDIAccess: MIDIAccess) {
-    outputs = Array.from(MIDIAccess.outputs.values());
-    console.log(outputs);
-
-    inputs = Array.from(MIDIAccess.inputs.values());
-    console.log(inputs);
+    console.log("success!");
+    setInputs(Array.from(MIDIAccess.inputs.values()));
+    setOutputs(Array.from(MIDIAccess.outputs.values()));
   }
 
   function onFailure() {
     console.log("failed");
+  }
+
+  function handleInputChange(input: string) {
+    console.log(input);
+    setCurrentInput(input);
+  }
+
+  function handleOutputChange(output: string) {
+    console.log(output);
+    setCurrentOutput(output);
   }
 
   function findNote(note: number): string {
@@ -49,6 +64,21 @@ function App() {
   return (
     <>
       <h2>MIDI React App</h2>
+      {inputs.length > 0 && (
+        <InputOutputList
+          type="input"
+          list={inputs}
+          handleChange={handleInputChange}
+        />
+      )}
+      <br />
+      {outputs.length > 0 && (
+        <InputOutputList
+          type="output"
+          list={outputs}
+          handleChange={handleOutputChange}
+        />
+      )}
     </>
   );
 }
