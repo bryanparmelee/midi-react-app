@@ -1,20 +1,45 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import InputOutputList from "./Components/InputOutputList";
 
-const noteNames = [
-  "C",
-  "C#",
-  "D",
-  "D#",
-  "E",
-  "F",
-  "F#",
-  "G",
-  "G#",
-  "A",
-  "A#",
-  "B",
-];
+// const noteNames = [
+//   "C",
+//   "C#",
+//   "D",
+//   "D#",
+//   "E",
+//   "F",
+//   "F#",
+//   "G",
+//   "G#",
+//   "A",
+//   "A#",
+//   "B",
+// ];
+
+// function findNote(note: number): string {
+//   const octave = Math.floor(note / 12 - 2);
+//   const noteIndex = note % 12;
+//   return noteNames[noteIndex] + octave.toString();
+// }
+
+interface MIDIInfo {
+  command: number;
+  channel: number;
+  note: number;
+  velocity: number;
+}
+
+function parseMIDI(message: MIDIMessageEvent): MIDIInfo | undefined {
+  if (message.data) {
+    return {
+      command: message.data[0] >> 4,
+      channel: message.data[0] & 0xf,
+      note: message.data[1],
+      velocity: message.data.length > 2 ? message.data[2] : 0,
+    };
+  }
+  return;
+}
 
 let currentSequenceId = -1;
 
@@ -41,6 +66,16 @@ function App() {
   const [currentInput, setCurrentInput] = useState<MIDIInput | null>(null);
   const [outputs, setOutputs] = useState<MIDIOutput[]>([]);
   const [currentOutput, setCurrentOutput] = useState<MIDIOutput | null>(null);
+  const outputRef = useRef<MIDIOutput | null>();
+  outputRef.current = currentOutput;
+
+  useEffect(() => {
+    if (currentInput) currentInput.onmidimessage = handleMIDI;
+  }, [currentInput]);
+
+  useEffect(() => {
+    outputRef.current = currentOutput;
+  }, [currentOutput]);
 
   function onSuccess(MIDIAccess: MIDIAccess) {
     const inputArray = Array.from(MIDIAccess.inputs.values());
@@ -61,6 +96,26 @@ function App() {
 
   function onFailure() {
     console.log("failed");
+  }
+
+  function handleMIDI(message: MIDIMessageEvent) {
+    const midiInfo = parseMIDI(message);
+    if (midiInfo) {
+      const { command, channel, note, velocity } = midiInfo;
+
+      if (command === 8) {
+        if (channel === 0) onNote(NOTE_OFF, note, -velocity / 127);
+      } else if (command === 9) {
+        if (channel === 0) onNote(NOTE_ON, note, velocity);
+      }
+    }
+  }
+
+  function onNote(status: number, note: number, velocity: number): void {
+    if (outputRef.current) {
+      console.log(outputRef.current.name, status, note, velocity);
+      outputRef.current.send([status, note, velocity]);
+    }
   }
 
   function handleInputChange(inputName: string) {
@@ -88,12 +143,6 @@ function App() {
 
       setTimeout(handlePlay, NOTE_DURATION);
     }
-  }
-
-  function findNote(note: number): string {
-    const octave = Math.floor(note / 12 - 2);
-    const noteIndex = note % 12;
-    return noteNames[noteIndex] + octave.toString();
   }
 
   return (
