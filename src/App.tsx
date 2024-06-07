@@ -66,16 +66,15 @@ function App() {
   const [currentInput, setCurrentInput] = useState<MIDIInput | null>(null);
   const [outputs, setOutputs] = useState<MIDIOutput[]>([]);
   const [currentOutput, setCurrentOutput] = useState<MIDIOutput | null>(null);
-  const outputRef = useRef<MIDIOutput | null>();
-  outputRef.current = currentOutput;
+  const outputRef = useRef<MIDIOutput | null>(currentOutput);
 
   useEffect(() => {
     if (currentInput) currentInput.onmidimessage = handleMIDI;
   }, [currentInput]);
 
-  useEffect(() => {
-    outputRef.current = currentOutput;
-  }, [currentOutput]);
+  // useEffect(() => {
+  //   outputRef.current = currentOutput;
+  // }, [currentOutput]);
 
   function onSuccess(MIDIAccess: MIDIAccess) {
     const inputArray = Array.from(MIDIAccess.inputs.values());
@@ -84,6 +83,7 @@ function App() {
     setOutputs(outputArray);
     setCurrentInput(inputArray[0]);
     setCurrentOutput(outputArray[0]);
+    if (!outputRef.current) outputRef.current = outputArray[0];
     MIDIAccess.onstatechange = () => {
       const updatedInputArray = Array.from(MIDIAccess.inputs.values());
       const updateOutputArray = Array.from(MIDIAccess.outputs.values());
@@ -91,6 +91,7 @@ function App() {
       setOutputs(updateOutputArray);
       setCurrentInput(updatedInputArray[0]);
       setCurrentOutput(updateOutputArray[0]);
+      if (!outputRef.current) outputRef.current = outputArray[0];
     };
   }
 
@@ -125,7 +126,10 @@ function App() {
 
   function handleOutputChange(outputName: string) {
     const output = outputs.find((o) => o.name === outputName);
-    if (output) setCurrentOutput(output);
+    if (output) {
+      setCurrentOutput(output);
+      outputRef.current = output;
+    }
   }
 
   function handlePlay() {
