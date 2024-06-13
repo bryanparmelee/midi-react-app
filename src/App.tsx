@@ -1,45 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import InputOutputList from "./Components/InputOutputList";
 
-// const noteNames = [
-//   "C",
-//   "C#",
-//   "D",
-//   "D#",
-//   "E",
-//   "F",
-//   "F#",
-//   "G",
-//   "G#",
-//   "A",
-//   "A#",
-//   "B",
-// ];
-
-// function findNote(note: number): string {
-//   const octave = Math.floor(note / 12 - 2);
-//   const noteIndex = note % 12;
-//   return noteNames[noteIndex] + octave.toString();
-// }
-
-interface MIDIInfo {
-  command: number;
-  channel: number;
-  note: number;
-  velocity: number;
-}
-
-function parseMIDI(message: MIDIMessageEvent): MIDIInfo | undefined {
-  if (message.data) {
-    return {
-      command: message.data[0] >> 4,
-      channel: message.data[0] & 0xf,
-      note: message.data[1],
-      velocity: message.data.length > 2 ? message.data[2] : 0,
-    };
-  }
-  return;
-}
+import { parseMIDI, keyToMidi } from "./constants";
+import { MIDIInfo } from "./types";
 
 let currentSequenceId = -1;
 
@@ -51,6 +14,8 @@ const sequence = intervals.map((x) => x + START);
 const NOTE_ON = 0x90;
 const NOTE_OFF = 0x80;
 const NOTE_DURATION = 300;
+
+const tempo = 120;
 
 let isMidiLoaded = false;
 
@@ -66,15 +31,32 @@ function App() {
   const [currentInput, setCurrentInput] = useState<MIDIInput | null>(null);
   const [outputs, setOutputs] = useState<MIDIOutput[]>([]);
   const [currentOutput, setCurrentOutput] = useState<MIDIOutput | null>(null);
+  const [currentNotes, setCurrentNotes] = useState<number[]>([1]);
+  const [isArpeggiatorOn, setIsArpeggiatorOn] = useState<boolean>(false);
   const outputRef = useRef<MIDIOutput | null>(currentOutput);
 
   useEffect(() => {
     if (currentInput) currentInput.onmidimessage = handleMIDI;
   }, [currentInput]);
 
-  // useEffect(() => {
-  //   outputRef.current = currentOutput;
-  // }, [currentOutput]);
+  useEffect(() => {
+    console.log(currentNotes);
+  }, [currentNotes]);
+
+  const onKeyPress = (ev: KeyboardEvent): void => {
+    if (keyToMidi[ev.key]) {
+      processMIDI({
+        command: 9,
+        channel: 0,
+        note: keyToMidi[ev.key],
+        velocity: 100,
+      });
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener("keydown", onKeyPress);
+  }, []);
 
   function onSuccess(MIDIAccess: MIDIAccess) {
     const inputArray = Array.from(MIDIAccess.inputs.values());
@@ -99,23 +81,40 @@ function App() {
     console.log("failed");
   }
 
-  function handleMIDI(message: MIDIMessageEvent) {
-    const midiInfo = parseMIDI(message);
-    if (midiInfo) {
-      const { command, channel, note, velocity } = midiInfo;
-
+  const processMIDI = (midi: MIDIInfo) => {
+    const { command, channel, note, velocity } = midi;
+    if (isArpeggiatorOn) {
+      console.log("arp is on!");
+      if (command === 9 && channel === 0) {
+        arpeggiateNote(note);
+      }
+    } else {
       if (command === 8) {
         if (channel === 0) onNote(NOTE_OFF, note, -velocity / 127);
       } else if (command === 9) {
+        console.log("arp is off!");
         if (channel === 0) onNote(NOTE_ON, note, velocity);
       }
     }
+  };
+
+  function handleMIDI(message: MIDIMessageEvent) {
+    const midiInfo = parseMIDI(message);
+    if (midiInfo) processMIDI(midiInfo);
   }
 
   function onNote(status: number, note: number, velocity: number): void {
     if (outputRef.current) {
       console.log(outputRef.current.name, status, note, velocity);
       outputRef.current.send([status, note, velocity]);
+    }
+  }
+
+  function arpeggiateNote(note: number) {
+    if (currentNotes.includes(note)) {
+      setCurrentNotes(currentNotes.filter((n) => n !== note));
+    } else {
+      setCurrentNotes([...currentNotes, note]);
     }
   }
 
@@ -130,6 +129,10 @@ function App() {
       setCurrentOutput(output);
       outputRef.current = output;
     }
+  }
+
+  function handleArpToggle() {
+    setIsArpeggiatorOn(!isArpeggiatorOn);
   }
 
   function handlePlay() {
@@ -169,6 +172,9 @@ function App() {
       )}
       <button type="button" id="play" onClick={() => handlePlay()}>
         PLAY
+      </button>
+      <button type="button" id="arp-toggle" onClick={handleArpToggle}>
+        Arpeggiator
       </button>
     </>
   );
